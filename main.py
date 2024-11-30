@@ -1,7 +1,7 @@
 import os
 import zipfile
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog, ttk
 
 class ZipCreatorApp:
     def __init__(self, root):
@@ -15,7 +15,7 @@ class ZipCreatorApp:
         # Configure the columns to have equal weight
         for i in range(3):
             self.root.grid_columnconfigure(i, weight=1)
-        for i in range(6):
+        for i in range(7):
             self.root.grid_rowconfigure(i, weight=1)
 
         # File listbox and scrollbar
@@ -47,6 +47,11 @@ class ZipCreatorApp:
         tk.Radiobutton(root, text="RAR", variable=self.archive_type, value="rar").grid(row=5, column=1, padx=5, pady=5, sticky="ew")
         tk.Radiobutton(root, text="7Z", variable=self.archive_type, value="7z").grid(row=5, column=2, padx=5, pady=5, sticky="ew")
 
+        # Progress bar
+        tk.Label(root, text="Progress:").grid(row=6, column=0, sticky="ew", padx=10, pady=5)
+        self.progress = ttk.Progressbar(root, orient="horizontal", length=100, mode="determinate")
+        self.progress.grid(row=6, column=1, columnspan=2, sticky="ew", padx=10, pady=5)
+
         # Internal state
         self.items = []  # Keeps track of full paths (files and folders) with display names
 
@@ -57,7 +62,8 @@ class ZipCreatorApp:
                 total_size += os.path.getsize(item[0])
 
         # Convert size to KB
-        self.stats_label.config(text=f"Stats: {len(self.items)} items selected, Estimated size: {(total_size / 1024):.2f} KB")
+        self.total_size_kb = total_size / 1024
+        self.stats_label.config(text=f"Stats: {len(self.items)} items selected, Estimated size: {self.total_size_kb:.2f} KB")
 
     def add_file(self):
         file_paths = filedialog.askopenfilenames()
@@ -131,19 +137,31 @@ class ZipCreatorApp:
 
         if archive_path:
             try:
+                # Set progress bar maximum to the number of items
+                self.progress["maximum"] = len(self.items)
+                self.progress["value"] = 0
+
+                # Simulate compression speed based on file size
+                speed_factor = max(0.05, min(1, 100 / self.total_size_kb)) if self.total_size_kb > 0 else 0.1
+
                 with zipfile.ZipFile(archive_path, 'w') as archive:
-                    for item in self.items:
+                    for idx, item in enumerate(self.items, 1):
                         full_path, display_name = item
                         if os.path.isdir(full_path):
-                            # Add the folder itself to the archive
                             archive.write(full_path, display_name)
                         else:
-                            # Add the file to the archive with the correct folder structure
                             archive.write(full_path, display_name)
+
+                        # Update progress bar with a delay proportional to the speed factor
+                        self.progress["value"] = idx
+                        self.root.update_idletasks()
+                        self.root.after(int(speed_factor * 100))
 
                 messagebox.showinfo("Success", f"Archive created at {archive_path}")
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred while creating the archive: {e}")
+            finally:
+                self.progress["value"] = 0
 
 if __name__ == "__main__":
     root = tk.Tk()
